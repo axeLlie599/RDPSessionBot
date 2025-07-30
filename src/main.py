@@ -1,4 +1,8 @@
 import logging
+<<<<<<< HEAD:src/main.py
+=======
+import sys
+>>>>>>> parent of 932f750 (Some changes):main.py
 import paramiko
 import asyncio
 import sqlite3
@@ -15,6 +19,7 @@ from telegram.ext import (
     ContextTypes,
     CallbackQueryHandler,
 )
+<<<<<<< HEAD:src/main.py
 from src.config import (
     BOT_TOKEN,
     SSH_HOST,
@@ -30,6 +35,74 @@ SESSION_TIMEOUT = DEFAULT_SESSION_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
+=======
+
+try:
+    load_dotenv(".env")
+except Exception as _:
+    print("Environment file wasn't loaded")
+    sys.exit(1)
+
+# --- Конфигурация ---
+BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+SSH_HOST = os.getenv('SSH_HOST')
+SSH_PORT = int(os.getenv('SSH_PORT', 22))
+# SSH учётка бота
+BOT_SSH_USER = os.getenv('BOT_SSH_USER')
+BOT_SSH_PASS = os.getenv('BOT_SSH_PASS')
+ADMIN_TELEGRAM_ID = int(os.getenv('ADMIN_TELEGRAM_ID'))
+PASSWORD_HASH_SECRET = os.getenv('PASSWORD_HASH_SECRET')
+# Инициализируем SESSION_TIMEOUT из .env или значением по умолчанию
+SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT', 300)) # По умолчанию 5 минут
+
+# --- Логирование ---
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# --- Инициализация БД ---
+DB_NAME = "bot_users.db"
+
+def init_db():
+    """Создаёт таблицы пользователей и сессий, если их нет."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        # Таблица пользователей бота
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS bot_users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id INTEGER UNIQUE NOT NULL,
+                username TEXT UNIQUE NOT NULL, -- Внутренний логин в боте
+                password_hash TEXT NOT NULL, -- Хеш пароля
+                salt TEXT NOT NULL, -- Соль для хеширования
+                status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'active', 'banned'
+                registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        # Таблица активных сессий бота (временно хранит данные пользователя)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS active_sessions (
+                telegram_id INTEGER PRIMARY KEY,
+                bot_user_id INTEGER NOT NULL,
+                timestamp REAL NOT NULL,
+                FOREIGN KEY (bot_user_id) REFERENCES bot_users (id)
+            )
+        ''')
+        conn.commit()
+        logger.info("База данных инициализирована.")
+
+@contextmanager
+def get_db_connection():
+    """Контекстный менеджер для подключения к БД."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+>>>>>>> parent of 932f750 (Some changes):main.py
 # --- Функции работы с БД (Пользователи) ---
 def register_bot_user(telegram_id: int, username: str, password: str) -> bool:
     """Регистрирует нового пользователя бота. Возвращает True, если успешно."""
