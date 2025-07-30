@@ -1,16 +1,13 @@
 import logging
-import pathlib
-import sys
-
 import paramiko
 import asyncio
-import os
 import sqlite3
 import time
-import hashlib
 import secrets
-from contextlib import contextmanager
-from dotenv import load_dotenv
+
+from src.db import get_db_connection, init_db, DBExpressions
+from utils import generate_hash
+from typing import Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -18,85 +15,32 @@ from telegram.ext import (
     ContextTypes,
     CallbackQueryHandler,
 )
-
-# --- Логирование ---
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+from src.config import (
+    BOT_TOKEN,
+    SSH_HOST,
+    SSH_PORT,
+    BOT_SSH_PASS,
+    BOT_SSH_USER,
+    ADMIN_TELEGRAM_ID,
+    PASSWORD_HASH_SECRET,
+    DEFAULT_SESSION_TIMEOUT
 )
+
+SESSION_TIMEOUT = DEFAULT_SESSION_TIMEOUT
+
 logger = logging.getLogger(__name__)
-
-if pathlib.Path.exists(pathlib.Path(".env")):
-    logger.info(".env found, loading...")
-    load_dotenv(".env")
-else:
-    logger.error("File not found, please check your env file")
-    sys.exit(1)
-
-# --- Конфигурация ---
-BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-SSH_HOST = os.getenv('SSH_HOST')
-SSH_PORT = int(os.getenv('SSH_PORT', 22))
-# SSH учётка бота
-BOT_SSH_USER = os.getenv('BOT_SSH_USER')
-BOT_SSH_PASS = os.getenv('BOT_SSH_PASS')
-ADMIN_TELEGRAM_ID = int(os.getenv('ADMIN_TELEGRAM_ID'))
-PASSWORD_HASH_SECRET = os.getenv('PASSWORD_HASH_SECRET')
-# Инициализируем SESSION_TIMEOUT из .env или значением по умолчанию
-SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT', 300)) # По умолчанию 5 минут
-
-
-
-# --- Инициализация БД ---
-DB_NAME = "bot_users.db"
-
-def init_db():
-    """Создаёт таблицы пользователей и сессий, если их нет."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        # Таблица пользователей бота
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS bot_users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                telegram_id INTEGER UNIQUE NOT NULL,
-                username TEXT UNIQUE NOT NULL, -- Внутренний логин в боте
-                password_hash TEXT NOT NULL, -- Хеш пароля
-                salt TEXT NOT NULL, -- Соль для хеширования
-                status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'active', 'banned'
-                registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        # Таблица активных сессий бота (временно хранит данные пользователя)
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS active_sessions (
-                telegram_id INTEGER PRIMARY KEY,
-                bot_user_id INTEGER NOT NULL,
-                timestamp REAL NOT NULL,
-                FOREIGN KEY (bot_user_id) REFERENCES bot_users (id)
-            )
-        ''')
-        conn.commit()
-        logger.info("База данных инициализирована.")
-
-@contextmanager
-def get_db_connection():
-    """Контекстный менеджер для подключения к БД."""
-    conn = sqlite3.connect(DB_NAME)
-    try:
-        yield conn
-    finally:
-        conn.close()
 
 # --- Функции работы с БД (Пользователи) ---
 def register_bot_user(telegram_id: int, username: str, password: str) -> bool:
     """Регистрирует нового пользователя бота. Возвращает True, если успешно."""
     try:
         salt = secrets.token_hex(16)
-        password_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), (PASSWORD_HASH_SECRET + salt).encode('utf-8'), 100000).hex()
+        password_hash = generate_hash(PASSWORD_HASH_SECRET, password, _salt=salt)
+        #password_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), (PASSWORD_HASH_SECRET + salt).encode('utf-8'), 100000).hex()
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO bot_users (telegram_id, username, password_hash, salt, status) VALUES (?, ?, ?, ?, 'pending')",
+                DBExpressions.register_user,
                 (telegram_id, username, password_hash, salt)
             )
             conn.commit()
@@ -109,7 +53,7 @@ def get_user_status(telegram_id: int) -> str | None:
     """Получает статус пользователя по Telegram ID."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT status FROM bot_users WHERE telegram_id = ?", (telegram_id,))
+        cursor.execute(DBExpressions.get_user_status, (telegram_id,))
         row = cursor.fetchone()
         return row[0] if row else None
 
@@ -117,39 +61,37 @@ def approve_user(telegram_id: int):
     """Одобряет пользователя, меняя статус на 'active'."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE bot_users SET status = 'active' WHERE telegram_id = ?", (telegram_id,))
+        cursor.execute(DBExpressions.approve_user, (telegram_id,))
         conn.commit()
 
-def authenticate_user(username: str, password: str) -> tuple[int | None, int | None]:
+def authenticate_user(username: str, password: str) -> tuple[Optional[int], Optional[int]]:
     """
     Аутентифицирует пользователя по логину и паролю.
     Возвращает (telegram_id, bot_user_id) если успешно, иначе (None, None).
     """
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, telegram_id, password_hash, salt FROM bot_users WHERE username = ? AND status = 'active'", (username,))
+        cursor.execute(DBExpressions.auth_user, (username,))
         row = cursor.fetchone()
         if row:
             bot_user_id, telegram_id, stored_hash, salt = row
-            password_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), (PASSWORD_HASH_SECRET + salt).encode('utf-8'), 100000).hex()
-            if secrets.compare_digest(password_hash, stored_hash): # Безопасное сравнение
-                return telegram_id, bot_user_id
+            password_hash = generate_hash(PASSWORD_HASH_SECRET, password, _salt=salt)
+            #password_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), (PASSWORD_HASH_SECRET + salt).encode('utf-8'), 100000).hex()
+            if secrets.compare_digest(password_hash, stored_hash): return telegram_id, bot_user_id
     return None, None
 
 def is_user_active(telegram_id: int) -> bool:
     """Проверяет, активен ли пользователь по Telegram ID."""
-    status = get_user_status(telegram_id)
-    return status == 'active'
+    return get_user_status(telegram_id) == 'active'
 
 # --- Функции работы с БД (Сессии) ---
 def create_session(telegram_id: int, bot_user_id: int):
     """Создаёт или обновляет сессию пользователя."""
-    timestamp = time.time()
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT OR REPLACE INTO active_sessions (telegram_id, bot_user_id, timestamp) VALUES (?, ?, ?)",
-            (telegram_id, bot_user_id, timestamp)
+            DBExpressions.create_session,
+            (telegram_id, bot_user_id, time.time())
         )
         conn.commit()
 
@@ -157,7 +99,7 @@ def get_session(telegram_id: int) -> tuple[int | None, float | None]:
     """Получает ID пользователя бота и временную метку сессии. Возвращает (bot_user_id, timestamp) или (None, None)."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT bot_user_id, timestamp FROM active_sessions WHERE telegram_id = ?", (telegram_id,))
+        cursor.execute(DBExpressions.get_session, (telegram_id,))
         row = cursor.fetchone()
         return row if row else (None, None)
 
@@ -165,7 +107,7 @@ def delete_session(telegram_id: int):
     """Удаляет сессию пользователя."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM active_sessions WHERE telegram_id = ?", (telegram_id,))
+        cursor.execute(DBExpressions.delete_session, (telegram_id,))
         conn.commit()
 
 def cleanup_expired_sessions():
@@ -174,7 +116,7 @@ def cleanup_expired_sessions():
     expired_time = now - SESSION_TIMEOUT
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM active_sessions WHERE timestamp < ?", (expired_time,))
+        cursor.execute(DBExpressions.cleanup_expired_sessions, (expired_time,))
         deleted_count = cursor.rowcount
         conn.commit()
         if deleted_count > 0:
@@ -330,7 +272,7 @@ async def update_main_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 # --- Обработчики команд ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_TELEGRAM_ID)
     # Проверяем, есть ли активная сессия
@@ -531,7 +473,7 @@ async def settings_button_handler(update: Update, context: ContextTypes.DEFAULT_
         await query.answer("Это информационное поле.", show_alert=False)
 
 # --- Обработчики команд администратора ---
-async def set_timeout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def set_timeout_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /set_timeout <значение> для админа"""
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
@@ -645,7 +587,7 @@ async def set_timeout(update: Update, context: ContextTypes.DEFAULT_TYPE):
              logger.error(f"Ошибка отправки нового сообщения настроек после set_timeout (нет основного): {e}")
 
 # --- Остальные обработчики команд ---
-async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     message_id = update.effective_message.message_id
@@ -853,7 +795,7 @@ async def button_approve_handler(update: Update, context: ContextTypes.DEFAULT_T
         menu_markup = get_main_menu(is_logged_in=is_admin_logged_in, is_admin=True)
         await query.edit_message_text(text=status_text, reply_markup=menu_markup)
 
-async def login(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     message_id = update.effective_message.message_id
@@ -920,7 +862,7 @@ async def login(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update_main_message(update, context, status_text, is_logged_in)
 
-async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def restart_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
      user_id = update.effective_user.id
      chat_id = update.effective_chat.id
      message_id = update.effective_message.message_id
@@ -999,7 +941,7 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
      except Exception as e:
           logger.warning(f"Не удалось удалить сообщение /restart {message_id}: {e}")
 
-async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def logout_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     message_id = update.effective_message.message_id
@@ -1018,14 +960,14 @@ if __name__ == '__main__':
     init_db() # Инициализируем БД при запуске
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("register", register))
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("register", register_command))
     app.add_handler(CommandHandler("approve", approve_user_command)) # Для админа
-    app.add_handler(CommandHandler("login", login))
-    app.add_handler(CommandHandler("restart", restart))
-    app.add_handler(CommandHandler("logout", logout))
+    app.add_handler(CommandHandler("login", login_command))
+    app.add_handler(CommandHandler("restart", restart_command))
+    app.add_handler(CommandHandler("logout", logout_command))
     # Новые обработчики для настроек
-    app.add_handler(CommandHandler("set_timeout", set_timeout)) # Для админа
+    app.add_handler(CommandHandler("set_timeout", set_timeout_command)) # Для админа
 
     # Обработчики для кнопок
     # Основные кнопки (включая "Настройки")
