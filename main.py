@@ -1,5 +1,7 @@
 import logging
+import pathlib
 import sys
+
 import paramiko
 import asyncio
 import os
@@ -17,10 +19,18 @@ from telegram.ext import (
     CallbackQueryHandler,
 )
 
-try:
+# --- Логирование ---
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+if pathlib.Path.exists(pathlib.Path(".env")):
+    logger.info(".env found, loading...")
     load_dotenv(".env")
-except Exception as _:
-    print("Environment file wasn't loaded")
+else:
+    logger.error("File not found, please check your env file")
     sys.exit(1)
 
 # --- Конфигурация ---
@@ -35,12 +45,7 @@ PASSWORD_HASH_SECRET = os.getenv('PASSWORD_HASH_SECRET')
 # Инициализируем SESSION_TIMEOUT из .env или значением по умолчанию
 SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT', 300)) # По умолчанию 5 минут
 
-# --- Логирование ---
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+
 
 # --- Инициализация БД ---
 DB_NAME = "bot_users.db"
