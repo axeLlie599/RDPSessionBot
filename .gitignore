@@ -47,9 +47,7 @@ wheels/
 .installed.cfg
 *.egg
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so we shouldn't track them.
+
 *.manifest
 *.spec
 
@@ -67,8 +65,6 @@ coverage.xml
 *.cover
 .hypothesis/
 
-# pyenv
-#  https://github.com/pyenv/pyenv#readme
 .pyenv
 
 # pipenv
@@ -92,8 +88,6 @@ requirements.txt  # если используешь uv, можно игнори�
 *~
 
 # PyCharm
-#  JetBrains IDEs: https://www.jetbrains.com/help/pycharm/manage-projects-under-version-control.html#exclude-files
-#  Если используешь .idea — уже игнорируешь, но можно явно указать
 *.iml
 *.ipr
 *.iws
@@ -125,17 +119,5 @@ $RECYCLE.BIN/
 *.msp
 *.lnk
 
-# uv (modern Python package manager)
 uv.lock
 .uv/
-
-# -----------------------
-# Файлы, которые НАДО сохранить в репозитории
-# -----------------------
-# Не игнорируем:
-#   pyproject.toml     — нужен
-#   README.md          — нужен
-#   LICENSE            — нужен
-#   start-bot          — нужен (скрипт запуска)
-#   src/               — весь код
-#   .env.example       — должен быть в репозитории
