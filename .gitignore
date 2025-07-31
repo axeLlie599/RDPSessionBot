@@ -12,7 +12,7 @@ ENV/
 .env
 .env.local
 *.env
-*.env.*
+
 
 # Базы данных
 *.db
