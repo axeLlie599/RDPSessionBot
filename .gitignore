@@ -1,6 +1,7 @@
 .env
 .venv
-bot_users.db
+*.db
 uv.lock
-start_bot
+uv*
 .idea
+src/*.old
