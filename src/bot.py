@@ -44,5 +44,4 @@ def main():
     logger.info("Бот запущен...")
     app.run_polling()
 
-# --- Основная функция ---
 main() if __name__ != "__main__" else logger.info("import this file as module instead directly run"); sys.exit(0)
