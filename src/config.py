@@ -39,7 +39,7 @@ class AppConfig:
             raise ConfigurationError("PASSWORD_HASH_SECRET is required")
 
         # Инициализация остальных атрибутов
-        self.DB_NAME = Path(os.environ.get("DB_NAME", "../database.db"))
+        self.DB_NAME = Path(os.environ.get("DB_NAME", "database.db"))
         self.SSH_HOST = os.getenv('SSH_HOST')
         self.SSH_PORT = int(os.getenv('SSH_PORT', 22))
         self.BOT_SSH_USER = os.getenv('BOT_SSH_USER')

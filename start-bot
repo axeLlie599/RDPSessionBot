@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-SRC=src
 VENV=.venv
 
-source $VENV/bin/activate && python3 $SRC/main.py
+source $VENV/bin/activate && python3 main.py
