@@ -4,3 +4,4 @@
 uv.lock
 uv*
 .idea
+src/*.old
