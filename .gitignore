@@ -2,5 +2,5 @@
 .venv
 *.db
 uv.lock
-start_bot
+uv*
 .idea
