@@ -4,14 +4,14 @@ from pathlib import Path
 from src.logger import envLogger
 from src.utils import check_env_file
 
+
 class ConfigurationError(Exception):
     pass
 
-from dotenv import load_dotenv
 
 class AppConfig:
-    loaded = check_env_file(Path("../.env"))
-    load_dotenv("../.env")
+    loaded = check_env_file()
+
     def __init__(self):
         if not self.loaded:
             envLogger.error("Configuration didn't load: ")

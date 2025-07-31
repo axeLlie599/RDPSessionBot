@@ -1,3 +1,5 @@
+import sys
+
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -18,19 +20,18 @@ from src.handlers.buttons.main_buttons import button_handler
 from src.handlers.buttons.settings_buttons import settings_button_handler
 from src.logger import logger
 
-# --- Основная функция ---
-if __name__ == '__main__':
-    init_db() # Инициализируем БД при запуске
+def main():
+    init_db()  # Инициализируем БД при запуске
     app = ApplicationBuilder().token(config.BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("register", register))
-    app.add_handler(CommandHandler("approve", approve_user_command)) # Для админа
+    app.add_handler(CommandHandler("approve", approve_user_command))  # Для админа
     app.add_handler(CommandHandler("login", login))
     app.add_handler(CommandHandler("restart", restart))
     app.add_handler(CommandHandler("logout", logout))
     # Новые обработчики для настроек
-    app.add_handler(CommandHandler("set_timeout", set_timeout)) # Для админа
+    app.add_handler(CommandHandler("set_timeout", set_timeout))  # Для админа
 
     # Обработчики для кнопок
     # Основные кнопки (включая "Настройки")
@@ -42,3 +43,6 @@ if __name__ == '__main__':
 
     logger.info("Бот запущен...")
     app.run_polling()
+
+# --- Основная функция ---
+main() if __name__ != "__main__" else logger.info("import this file as module instead directly run"); sys.exit(0)

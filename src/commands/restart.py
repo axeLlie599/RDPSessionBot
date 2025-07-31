@@ -5,7 +5,7 @@ from src.config import config
 from src.db.utils import cleanup_expired_sessions, get_session, create_session
 from src.engine import update_main_message
 from src.logger import logger
-from src.ssh_utils import restart_user_session_on_server
+from src.ssh import restart_user_session_on_server
 from telegram import Update
 from telegram.ext import ContextTypes
 
