@@ -1,6 +1,6 @@
 .env
 .venv
-bot_users.db
+*.db
 uv.lock
 start_bot
 .idea
