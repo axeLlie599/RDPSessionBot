@@ -1,7 +1,141 @@
+# -----------------------
+# Исходные файлы, которые НЕ нужно коммитить
+# -----------------------
+
+# Виртуальные окружения
+.venv/
+venv/
+env/
+ENV/
+
+# Переменные окружения
 .env
-.venv
+.env.local
+*.env
+*.env.*
+
+# Базы данных
 *.db
+*.sqlite3
+*.sql
+*.db-journal
+
+# Логи
+*.log
+logs/
+log/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so we shouldn't track them.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# pyenv
+#  https://github.com/pyenv/pyenv#readme
+.pyenv
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+*.part
+.poetry
+
+# Virtual Environment
+.venv
+requirements.txt  # если используешь uv, можно игнорировать, если не генерируешь
+
+# IDE / Редакторы
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*~
+
+# PyCharm
+#  JetBrains IDEs: https://www.jetbrains.com/help/pycharm/manage-projects-under-version-control.html#exclude-files
+#  Если используешь .idea — уже игнорируешь, но можно явно указать
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.history
+*.vscode
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+.VolumeIcon.icns
+.fseventsd
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# uv (modern Python package manager)
 uv.lock
-uv*
-.idea
-src/*.old
+.uv/
+
+# -----------------------
+# Файлы, которые НАДО сохранить в репозитории
+# -----------------------
+# Не игнорируем:
+#   pyproject.toml     — нужен
+#   README.md          — нужен
+#   LICENSE            — нужен
+#   start-bot          — нужен (скрипт запуска)
+#   src/               — весь код
+#   .env.example       — должен быть в репозитории
