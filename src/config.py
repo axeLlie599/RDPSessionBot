@@ -45,7 +45,7 @@ class AppConfig:
         self.BOT_SSH_USER = os.getenv('BOT_SSH_USER')
         self.BOT_SSH_PASS = os.getenv('BOT_SSH_PASS')
         self.SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT', 300))
-        #TODO:self.PREFER_LANG: Langs = Langs(os.getenv("PREFER_LANG", Langs.RU))
+        #TODO self.PREFER_LANG: Langs = Langs(os.getenv("PREFER_LANG", Langs.RU))
 
         envLogger.info("Configuration loaded")
 
