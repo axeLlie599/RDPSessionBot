@@ -1,1 +1,3 @@
 # RDPSessionBot
+
+> Localization in progress...
