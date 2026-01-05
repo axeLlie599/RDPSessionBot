@@ -1,7 +1,7 @@
 [project]
 name = "RDPSessionBot"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.1.5"
+description = "Python telegram rdp session restart bot with some benefits"
 requires-python = ">=3.10"
 dependencies = [
     "paramiko>=3.5.1",
